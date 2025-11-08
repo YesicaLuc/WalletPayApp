@@ -19,8 +19,7 @@ App móvil en **React Native (TypeScript)** que simula una billetera virtual: lo
 
 ## 📦 Instalación
 
-```bash
-git clone 
+git clone https://github.com/YesicaLuc/WalletPayApp
 cd WalletPayApp
 
 # dependencias JS
