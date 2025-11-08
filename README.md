@@ -1,97 +1,126 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# 💸 WalletPayApp
 
-# Getting Started
+App móvil en **React Native (TypeScript)** que simula una billetera virtual: login, saldo, envío y recepción de dinero, y actividad reciente.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Requisitos
 
-## Step 1: Start Metro
+- **Node.js** `>= 20` (requerido por RN 0.82, Metro usa `toReversed`)
+  - Recomendado: `nvm install 20.18.1 && nvm use 20.18.1`
+- **npm** `>= 9`
+- **Watchman** (macOS): `brew install watchman`
+- **Android Studio** + SDK + emulador / dispositivo con depuración USB
+- **Java 17** (JDK 17)
+- **Xcode** (para iOS) y **CocoaPods** (`brew install cocoapods`)
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+> Verifica tu versión de Node:
+> ```bash
+> node -v  # debe ser v20.x o v22.x
+> ```
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## 📦 Instalación
 
-```sh
-# Using npm
-npm start
+```bash
+git clone 
+cd WalletPayApp
 
-# OR using Yarn
-yarn start
-```
+# dependencias JS
+npm install
 
-## Step 2: Build and run your app
+# iOS (solo si vas a compilar iOS)
+cd ios
+pod install
+cd ..
+▶️ Ejecución
+1) Iniciar Metro
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+npm start -- --reset-cache
+Deja esta terminal abierta.
 
-### Android
+2) Android
+En otra terminal:
 
-```sh
-# Using npm
-npm run android
 
-# OR using Yarn
-yarn android
-```
+npx react-native run-android
+Asegúrate de tener un emulador Android encendido o un dispositivo conectado.
 
-### iOS
+3) iOS (opcional)
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+# si no corriste 'pod install', hazlo antes dentro de ios/
+npx react-native run-ios
+# o forzando workspace/scheme:
+# npx react-native run-ios --workspace ios/WalletPayApp.xcworkspace --scheme WalletPayApp
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+Estructura
 
-```sh
-bundle install
-```
+WalletPayApp/
+├── android/                  # proyecto nativo Android
+├── ios/                      # proyecto nativo iOS
+├── App.tsx                   # componente raíz (tu UI)
+├── index.js                  # entrypoint RN (registra la app)
+├── app.json                  # nombre de la app
+├── package.json              # dependencias/scripts
+├── babel.config.js           # Babel (usa metro-react-native-babel-preset)
+└── metro.config.js           # Metro bundler
 
-Then, and every time you update your native dependencies, run:
+🔧 Scripts útiles
 
-```sh
-bundle exec pod install
-```
+npm start                 # inicia Metro
+npm run android           # alias sugerido: "react-native run-android"
+npm run ios               # alias sugerido: "react-native run-ios"
+Si quieres, en package.json puedes agregar:
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
 
-```sh
-# Using npm
-npm run ios
+{
+  "scripts": {
+    "start": "react-native start",
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "clean:android": "cd android && ./gradlew clean && cd ..",
+    "reset": "watchman watch-del-all || true && rm -rf node_modules package-lock.json && npm i"
+  }
+}
 
-# OR using Yarn
-yarn ios
-```
+🧩 Troubleshooting (casos reales de este repo)
+configs.toReversed is not a function al iniciar Metro
+Estás usando Node 18. Cambia a Node 20+:
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+nvm install 20.18.1 && nvm use 20.18.1
+rm -rf node_modules package-lock.json && npm i
+npm start -- --reset-cache
+Se abre la app básica / bundle incorrecto
+Mata packagers y usa el del proyecto correcto:
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
 
-## Step 3: Modify your app
+lsof -i :8081 -sTCP:LISTEN -nP | awk 'NR>1{print $2}' | xargs kill -9 2>/dev/null
+lsof -i :8082 -sTCP:LISTEN -nP | awk 'NR>1{print $2}' | xargs kill -9 2>/dev/null
+npm start -- --reset-cache
+En el simulador iOS: Dev Menu (⌘D) → Reload.
+Si pregunta por usar otro puerto, elige No (mantener 8081).
 
-Now that you have successfully run the app, let's make changes!
+Cannot find module 'metro-react-native-babel-preset'
+Instala el preset:
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+npm i -D metro-react-native-babel-preset @babel/core
+En babel.config.js:
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+module.exports = { presets: ['module:metro-react-native-babel-preset'] };
+iOS: Unable to open base configuration reference file ... Pods-*.xcconfig / error 65
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+Falta instalar pods:
 
-## Congratulations! :tada:
+cd ios && pod install && cd ..
+npx react-native run-ios --workspace ios/WalletPayApp.xcworkspace --scheme WalletPayApp
+p/Images.xcassets/AppIcon.appiconset.
 
-You've successfully run and modified your React Native App. :partying_face:
+📝 Notas
+Este proyecto usa React 19 + React Native 0.82.x.
 
-### Now what?
+Si usas TypeScript: añade @types/react@^19 si el editor se queja de tipos.
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+Para limpiar por completo:
 
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+watchman watch-del-all || true
+rm -rf node_modules package-lock.json
+cd android && ./gradlew clean && cd ..
+npm i
+npm start -- --reset-cache
