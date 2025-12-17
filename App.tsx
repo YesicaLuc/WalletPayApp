@@ -10,6 +10,7 @@ import {
   View,
   Modal,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 
 interface Transaction {
@@ -19,12 +20,17 @@ interface Transaction {
   from?: string;
   to?: string;
   date: string;
+  time: string;
+  description?: string;
+  status: 'completed' | 'pending' | 'failed';
 }
 
 interface User {
   name: string;
   email: string;
   accountNumber: string;
+  alias: string;
+  cvu: string;
 }
 
 const App = () => {
@@ -37,6 +43,9 @@ const App = () => {
       amount: 500,
       from: 'Juan Pérez',
       date: '2024-11-05',
+      time: '14:30',
+      description: 'Pago de almuerzo',
+      status: 'completed',
     },
     {
       id: 2,
@@ -44,6 +53,9 @@ const App = () => {
       amount: 200,
       to: 'María García',
       date: '2024-11-04',
+      time: '10:15',
+      description: 'Regalo cumpleaños',
+      status: 'completed',
     },
   ]);
   const [user, setUser] = useState<User | null>(null);
@@ -76,7 +88,7 @@ const App = () => {
         return (
           <SendMoneyView
             balance={balance}
-            onSend={(amount: number, recipient: string) => {
+            onSend={(amount: number, recipient: string, description: string) => {
               setBalance(balance - amount);
               setTransactions([
                 {
@@ -85,6 +97,12 @@ const App = () => {
                   amount,
                   to: recipient,
                   date: new Date().toISOString().split('T')[0],
+                  time: new Date().toLocaleTimeString('es-AR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  description,
+                  status: 'completed',
                 },
                 ...transactions,
               ]);
@@ -95,8 +113,46 @@ const App = () => {
         );
       case 'receive':
         return (
-          <ReceiveMoneyView
+          <ReceiveMoneyView user={user} onBack={() => setCurrentView('home')} />
+        );
+      case 'simulate-receive':
+        return (
+          <SimulateReceiveView
+            onReceive={(amount: number, sender: string, description: string) => {
+              setBalance(balance + amount);
+              setTransactions([
+                {
+                  id: transactions.length + 1,
+                  type: 'received',
+                  amount,
+                  from: sender,
+                  date: new Date().toISOString().split('T')[0],
+                  time: new Date().toLocaleTimeString('es-AR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  description,
+                  status: 'completed',
+                },
+                ...transactions,
+              ]);
+              setCurrentView('home');
+            }}
+            onBack={() => setCurrentView('home')}
+          />
+        );
+      case 'profile':
+        return (
+          <ProfileView
             user={user}
+            balance={balance}
+            onBack={() => setCurrentView('home')}
+          />
+        );
+      case 'transaction-detail':
+        return (
+          <TransactionDetailView
+            transaction={transactions[0]}
             onBack={() => setCurrentView('home')}
           />
         );
@@ -107,7 +163,7 @@ const App = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#7c3aed" />
+      <StatusBar barStyle="light-content" backgroundColor="#0A0E27" />
       {renderView()}
     </SafeAreaView>
   );
@@ -149,6 +205,8 @@ const LoginView = ({ onLogin }: { onLogin: (user: User) => void }) => {
           name: 'Usuario Demo',
           email: email,
           accountNumber: '1234567890',
+          alias: 'usuario.demo.wallet',
+          cvu: '0000003100012345678901',
         });
       }, 1500);
     }
@@ -166,17 +224,17 @@ const LoginView = ({ onLogin }: { onLogin: (user: User) => void }) => {
           <Text style={styles.title} testID="login-title">
             WalletPay
           </Text>
-          <Text style={styles.subtitle}>Tu billetera virtual</Text>
+          <Text style={styles.subtitle}>Finanzas inteligentes</Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>Correo electrónico</Text>
             <TextInput
               testID="email-input"
               style={[styles.input, errors.email && styles.inputError]}
               placeholder="tu@email.com"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#64748B"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -195,7 +253,7 @@ const LoginView = ({ onLogin }: { onLogin: (user: User) => void }) => {
               testID="password-input"
               style={[styles.input, errors.password && styles.inputError]}
               placeholder="••••••"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#64748B"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -213,7 +271,7 @@ const LoginView = ({ onLogin }: { onLogin: (user: User) => void }) => {
             onPress={handleLogin}
             disabled={isLoading}>
             {isLoading ? (
-              <ActivityIndicator color="#ffffff" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.buttonText}>Ingresar</Text>
             )}
@@ -252,12 +310,20 @@ const HomeView = ({
           </Text>
           <Text style={styles.userEmail}>{user?.email}</Text>
         </View>
-        <TouchableOpacity
-          onPress={onLogout}
-          testID="logout-button"
-          style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Salir</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => onNavigate?.('profile')}
+            testID="profile-button"
+            style={styles.profileIconButton}>
+            <Text style={styles.profileIcon}>👤</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onLogout}
+            testID="logout-button"
+            style={styles.logoutButton}>
+            <Text style={styles.logoutText}>Salir</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.balanceCard}>
@@ -272,7 +338,7 @@ const HomeView = ({
             style={[styles.actionButton, styles.sendButton]}
             onPress={() => onNavigate?.('send')}>
             <Text style={styles.actionIcon}>↑</Text>
-            <Text style={styles.actionButtonText}>Enviar dinero</Text>
+            <Text style={styles.actionButtonText}>Enviar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -280,7 +346,15 @@ const HomeView = ({
             style={[styles.actionButton, styles.receiveButton]}
             onPress={() => onNavigate?.('receive')}>
             <Text style={styles.actionIcon}>↓</Text>
-            <Text style={styles.actionButtonText}>Recibir dinero</Text>
+            <Text style={styles.actionButtonText}>Recibir</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            testID="simulate-receive-button"
+            style={[styles.actionButton, styles.simulateButton]}
+            onPress={() => onNavigate?.('simulate-receive')}>
+            <Text style={styles.actionIcon}>+</Text>
+            <Text style={styles.actionButtonText}>Simular</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -289,10 +363,11 @@ const HomeView = ({
         <Text style={styles.transactionsTitle}>Actividad reciente</Text>
         <View testID="transactions-list">
           {transactions?.map(transaction => (
-            <View
+            <TouchableOpacity
               key={transaction.id}
               style={styles.transactionItem}
-              testID={`transaction-${transaction.id}`}>
+              testID={`transaction-${transaction.id}`}
+              onPress={() => onNavigate?.('transaction-detail')}>
               <View style={styles.transactionLeft}>
                 <View
                   style={[
@@ -317,7 +392,9 @@ const HomeView = ({
                       ? transaction.to
                       : transaction.from}
                   </Text>
-                  <Text style={styles.transactionDate}>{transaction.date}</Text>
+                  <Text style={styles.transactionDate}>
+                    {transaction.date} • {transaction.time}
+                  </Text>
                 </View>
               </View>
               <Text
@@ -330,7 +407,7 @@ const HomeView = ({
                 {transaction.type === 'sent' ? '-' : '+'}$
                 {transaction.amount.toFixed(2)}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       </View>
@@ -344,7 +421,7 @@ const SendMoneyView = ({
   onBack,
 }: {
   balance: number;
-  onSend: (amount: number, recipient: string) => void;
+  onSend: (amount: number, recipient: string, description: string) => void;
   onBack: () => void;
 }) => {
   const [amount, setAmount] = useState('');
@@ -393,7 +470,7 @@ const SendMoneyView = ({
   const confirmTransaction = () => {
     setIsProcessing(true);
     setTimeout(() => {
-      onSend(parseFloat(amount), recipient);
+      onSend(parseFloat(amount), recipient, description);
     }, 1500);
   };
 
@@ -409,7 +486,8 @@ const SendMoneyView = ({
       <View style={styles.sendCard}>
         <Text style={styles.sendTitle}>Enviar dinero</Text>
         <Text style={styles.sendBalance}>
-          Saldo disponible: <Text style={styles.bold}>${balance.toFixed(2)}</Text>
+          Saldo disponible:{' '}
+          <Text style={styles.bold}>${balance.toFixed(2)}</Text>
         </Text>
 
         <View style={styles.form} testID="send-money-form">
@@ -419,7 +497,7 @@ const SendMoneyView = ({
               testID="recipient-input"
               style={[styles.input, errors.recipient && styles.inputError]}
               placeholder="Nombre del destinatario"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#64748B"
               value={recipient}
               onChangeText={setRecipient}
             />
@@ -442,7 +520,7 @@ const SendMoneyView = ({
                   errors.amount && styles.inputError,
                 ]}
                 placeholder="0.00"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor="#64748B"
                 value={amount}
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
@@ -461,7 +539,7 @@ const SendMoneyView = ({
               testID="description-input"
               style={styles.input}
               placeholder="¿Para qué es este pago?"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#64748B"
               value={description}
               onChangeText={setDescription}
             />
@@ -488,7 +566,9 @@ const SendMoneyView = ({
             </View>
             <Text style={styles.modalTitle}>Confirmar transacción</Text>
 
-            <View style={styles.confirmationDetails} testID="confirmation-details">
+            <View
+              style={styles.confirmationDetails}
+              testID="confirmation-details">
               <View style={styles.confirmationRow}>
                 <Text style={styles.confirmationLabel}>Destinatario:</Text>
                 <Text style={styles.confirmationValue}>{recipient}</Text>
@@ -513,7 +593,7 @@ const SendMoneyView = ({
               onPress={confirmTransaction}
               disabled={isProcessing}>
               {isProcessing ? (
-                <ActivityIndicator color="#ffffff" />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.buttonText}>Confirmar envío</Text>
               )}
@@ -521,7 +601,10 @@ const SendMoneyView = ({
 
             <TouchableOpacity
               testID="cancel-button"
-              style={[styles.cancelButton, isProcessing && styles.buttonDisabled]}
+              style={[
+                styles.cancelButton,
+                isProcessing && styles.buttonDisabled,
+              ]}
               onPress={() => setShowConfirmation(false)}
               disabled={isProcessing}>
               <Text style={styles.cancelButtonText}>Cancelar</Text>
@@ -574,7 +657,7 @@ const ReceiveMoneyView = ({
                   testID="request-amount-input"
                   style={[styles.input, styles.amountInput]}
                   placeholder="0.00"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor="#64748B"
                   value={requestAmount}
                   onChangeText={setRequestAmount}
                   keyboardType="decimal-pad"
@@ -592,16 +675,23 @@ const ReceiveMoneyView = ({
         ) : (
           <View style={styles.qrContainer}>
             <View style={styles.qrCodeWrapper}>
-              <View style={styles.qrCode} testID="qr-code">
-                <Text style={styles.qrCodeText}>QR</Text>
+              <View testID="qr-code" style={styles.qrCodePlaceholder}>
+                <Text style={styles.qrCodeText}>📱</Text>
+                <Text style={styles.qrCodeSubtext}>Código QR</Text>
               </View>
             </View>
 
             <View style={styles.qrInfo}>
-              <Text style={styles.qrLabel}>Cuenta:</Text>
-              <Text style={styles.qrValue} testID="account-number">
-                {user?.accountNumber}
+              <Text style={styles.qrLabel}>Alias:</Text>
+              <Text style={styles.qrValue} testID="qr-alias">
+                {user?.alias}
               </Text>
+
+              <Text style={[styles.qrLabel, styles.marginTop]}>CVU:</Text>
+              <Text style={styles.qrValueSmall} testID="qr-cvu">
+                {user?.cvu}
+              </Text>
+
               {requestAmount && parseFloat(requestAmount) > 0 && (
                 <>
                   <Text style={[styles.qrLabel, styles.marginTop]}>
@@ -630,212 +720,618 @@ const ReceiveMoneyView = ({
   );
 };
 
+const SimulateReceiveView = ({
+  onReceive,
+  onBack,
+}: {
+  onReceive: (amount: number, sender: string, description: string) => void;
+  onBack: () => void;
+}) => {
+  const [amount, setAmount] = useState('');
+  const [sender, setSender] = useState('');
+  const [description, setDescription] = useState('');
+  const [errors, setErrors] = useState<{
+    amount?: string;
+    sender?: string;
+  }>({});
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const validateForm = () => {
+    const newErrors: { amount?: string; sender?: string } = {};
+    const numAmount = parseFloat(amount);
+
+    if (!amount) {
+      newErrors.amount = 'El monto es requerido';
+    } else if (isNaN(numAmount)) {
+      newErrors.amount = 'El monto debe ser un número válido';
+    } else if (numAmount <= 0) {
+      newErrors.amount = 'El monto debe ser mayor a 0';
+    }
+
+    if (!sender) {
+      newErrors.sender = 'El remitente es requerido';
+    } else if (sender.length < 3) {
+      newErrors.sender =
+        'El nombre del remitente debe tener al menos 3 caracteres';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (validateForm()) {
+      setIsProcessing(true);
+      setTimeout(() => {
+        onReceive(parseFloat(amount), sender, description);
+      }, 1500);
+    }
+  };
+
+  return (
+    <ScrollView style={styles.simulateContainer} testID="simulate-receive-view">
+      <TouchableOpacity
+        onPress={onBack}
+        testID="back-button-simulate"
+        style={styles.backButton}>
+        <Text style={styles.backButtonText}>← Volver</Text>
+      </TouchableOpacity>
+
+      <View style={styles.simulateCard}>
+        <Text style={styles.simulateTitle}>Simular recepción</Text>
+        <Text style={styles.simulateSubtitle}>
+          Emula recibir una transferencia
+        </Text>
+
+        <View style={styles.form} testID="simulate-receive-form">
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Remitente</Text>
+            <TextInput
+              testID="sender-input"
+              style={[styles.input, errors.sender && styles.inputError]}
+              placeholder="Nombre del remitente"
+              placeholderTextColor="#64748B"
+              value={sender}
+              onChangeText={setSender}
+            />
+            {errors.sender && (
+              <Text style={styles.errorText} testID="sender-error">
+                {errors.sender}
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Monto</Text>
+            <View style={styles.amountInputContainer}>
+              <Text style={styles.currencySymbol}>$</Text>
+              <TextInput
+                testID="simulate-amount-input"
+                style={[
+                  styles.input,
+                  styles.amountInput,
+                  errors.amount && styles.inputError,
+                ]}
+                placeholder="0.00"
+                placeholderTextColor="#64748B"
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            {errors.amount && (
+              <Text style={styles.errorText} testID="simulate-amount-error">
+                {errors.amount}
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Descripción (opcional)</Text>
+            <TextInput
+              testID="simulate-description-input"
+              style={styles.input}
+              placeholder="Concepto de la transferencia"
+              placeholderTextColor="#64748B"
+              value={description}
+              onChangeText={setDescription}
+            />
+          </View>
+
+          <TouchableOpacity
+            testID="simulate-confirm-button"
+            style={[styles.button, isProcessing && styles.buttonDisabled]}
+            onPress={handleSubmit}
+            disabled={isProcessing}>
+            {isProcessing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>Simular recepción</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </ScrollView>
+  );
+};
+
+const ProfileView = ({
+  user,
+  balance,
+  onBack,
+}: {
+  user?: User | null;
+  balance?: number;
+  onBack: () => void;
+}) => {
+  const [copyMessage, setCopyMessage] = useState('');
+
+  const copyToClipboard = (text: string, type: string) => {
+    setCopyMessage(`${type} copiado`);
+    setTimeout(() => setCopyMessage(''), 2000);
+  };
+
+  return (
+    <ScrollView style={styles.profileContainer} testID="profile-view">
+      <TouchableOpacity
+        onPress={onBack}
+        testID="back-button-profile"
+        style={styles.backButton}>
+        <Text style={styles.backButtonText}>← Volver</Text>
+      </TouchableOpacity>
+
+      <View style={styles.profileCard}>
+        <View style={styles.profileHeader}>
+          <View style={styles.profileAvatar}>
+            <Text style={styles.profileAvatarText}>
+              {user?.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <Text style={styles.profileName} testID="profile-name">
+            {user?.name}
+          </Text>
+          <Text style={styles.profileEmail} testID="profile-email">
+            {user?.email}
+          </Text>
+        </View>
+
+        <View style={styles.profileBalance}>
+          <Text style={styles.profileBalanceLabel}>Saldo total</Text>
+          <Text style={styles.profileBalanceAmount} testID="profile-balance">
+            ${balance?.toFixed(2)}
+          </Text>
+        </View>
+
+        <View style={styles.profileSection}>
+          <Text style={styles.profileSectionTitle}>Datos de la cuenta</Text>
+
+          <View style={styles.dataItem}>
+            <View style={styles.dataItemLeft}>
+              <Text style={styles.dataItemLabel}>Alias</Text>
+              <Text style={styles.dataItemValue} testID="profile-alias">
+                {user?.alias}
+              </Text>
+            </View>
+            <TouchableOpacity
+              testID="copy-alias-button"
+              style={styles.copyButton}
+              onPress={() => copyToClipboard(user?.alias || '', 'Alias')}>
+              <Text style={styles.copyButtonText}>📋</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.dataItem}>
+            <View style={styles.dataItemLeft}>
+              <Text style={styles.dataItemLabel}>CVU</Text>
+              <Text style={styles.dataItemValue} testID="profile-cvu">
+                {user?.cvu}
+              </Text>
+            </View>
+            <TouchableOpacity
+              testID="copy-cvu-button"
+              style={styles.copyButton}
+              onPress={() => copyToClipboard(user?.cvu || '', 'CVU')}>
+              <Text style={styles.copyButtonText}>📋</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.dataItem}>
+            <View style={styles.dataItemLeft}>
+              <Text style={styles.dataItemLabel}>Número de cuenta</Text>
+              <Text style={styles.dataItemValue} testID="profile-account">
+                {user?.accountNumber}
+              </Text>
+            </View>
+            <TouchableOpacity
+              testID="copy-account-button"
+              style={styles.copyButton}
+              onPress={() =>
+                copyToClipboard(user?.accountNumber || '', 'Número de cuenta')
+              }>
+              <Text style={styles.copyButtonText}>📋</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {copyMessage && (
+          <View style={styles.copyMessageContainer}>
+            <Text style={styles.copyMessageText} testID="copy-message">
+              ✓ {copyMessage}
+            </Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+};
+
+const TransactionDetailView = ({
+  transaction,
+  onBack,
+}: {
+  transaction?: Transaction;
+  onBack: () => void;
+}) => {
+  return (
+    <ScrollView
+      style={styles.transactionDetailContainer}
+      testID="transaction-detail-view">
+      <TouchableOpacity
+        onPress={onBack}
+        testID="back-button-detail"
+        style={styles.backButton}>
+        <Text style={styles.backButtonText}>← Volver</Text>
+      </TouchableOpacity>
+
+      <View style={styles.transactionDetailCard}>
+        <View
+          style={[
+            styles.detailStatusIcon,
+            transaction?.status === 'completed' && styles.detailStatusCompleted,
+            transaction?.status === 'pending' && styles.detailStatusPending,
+            transaction?.status === 'failed' && styles.detailStatusFailed,
+          ]}>
+          <Text style={styles.detailStatusIconText}>
+            {transaction?.status === 'completed'
+              ? '✓'
+              : transaction?.status === 'pending'
+              ? '⏱'
+              : '✗'}
+          </Text>
+        </View>
+
+        <Text style={styles.detailStatus} testID="transaction-status">
+          {transaction?.status === 'completed'
+            ? 'Completada'
+            : transaction?.status === 'pending'
+            ? 'Pendiente'
+            : 'Fallida'}
+        </Text>
+
+        <Text
+          style={[
+            styles.detailAmount,
+            transaction?.type === 'sent'
+              ? styles.detailAmountSent
+              : styles.detailAmountReceived,
+          ]}
+          testID="transaction-detail-amount">
+          {transaction?.type === 'sent' ? '-' : '+'}$
+          {transaction?.amount.toFixed(2)}
+        </Text>
+
+        <View style={styles.detailInfo}>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>
+              {transaction?.type === 'sent' ? 'Para:' : 'De:'}
+            </Text>
+            <Text style={styles.detailValue} testID="transaction-detail-party">
+              {transaction?.type === 'sent'
+                ? transaction?.to
+                : transaction?.from}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Fecha:</Text>
+            <Text style={styles.detailValue} testID="transaction-detail-date">
+              {transaction?.date}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Hora:</Text>
+            <Text style={styles.detailValue} testID="transaction-detail-time">
+              {transaction?.time}
+            </Text>
+          </View>
+
+          {transaction?.description && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Descripción:</Text>
+              <Text
+                style={styles.detailValue}
+                testID="transaction-detail-description">
+                {transaction?.description}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>ID de transacción:</Text>
+            <Text style={styles.detailValue} testID="transaction-detail-id">
+              #{transaction?.id.toString().padStart(8, '0')}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          testID="share-transaction-button"
+          style={styles.shareButton}>
+          <Text style={styles.shareButtonText}>📤 Compartir comprobante</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#0A0E27',
   },
   loginContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: 24,
   },
   loginCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 30,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 32,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 12,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 40,
   },
   logo: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#7c3aed',
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: '#6366F1',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
   },
   logoText: {
-    color: '#ffffff',
-    fontSize: 32,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 36,
+    fontWeight: '700',
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 8,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
+    color: '#64748B',
+    fontWeight: '500',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   form: {
-    marginTop: 10,
+    marginTop: 12,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    color: '#0F172A',
+    marginBottom: 10,
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#F8FAFC',
+    color: '#0F172A',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   inputError: {
-    borderColor: '#ef4444',
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
   },
   errorText: {
-    color: '#ef4444',
-    fontSize: 12,
-    marginTop: 5,
+    color: '#EF4444',
+    fontSize: 13,
+    marginTop: 6,
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+    fontWeight: '500',
   },
   button: {
-    backgroundColor: '#7c3aed',
-    borderRadius: 10,
-    padding: 15,
+    backgroundColor: '#6366F1',
+    borderRadius: 12,
+    padding: 18,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   buttonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   buttonText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+    letterSpacing: 0.3,
   },
   forgotPassword: {
-    marginTop: 20,
+    marginTop: 24,
     alignItems: 'center',
   },
   forgotPasswordText: {
-    color: '#7c3aed',
+    color: '#6366F1',
     fontSize: 14,
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   homeContainer: {
     flex: 1,
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#0A0E27',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    paddingTop: 10,
+    padding: 24,
+    paddingTop: 12,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  profileIconButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileIcon: {
+    fontSize: 20,
   },
   greeting: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+    letterSpacing: -0.5,
   },
   userEmail: {
     fontSize: 14,
-    color: '#e0e7ff',
-    marginTop: 2,
+    color: '#94A3B8',
+    marginTop: 4,
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+    fontWeight: '500',
   },
   logoutButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   logoutText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+    fontSize: 14,
   },
   balanceCard: {
-    backgroundColor: '#ffffff',
-    margin: 20,
+    backgroundColor: '#FFFFFF',
+    margin: 24,
     marginTop: 0,
-    borderRadius: 20,
-    padding: 25,
+    borderRadius: 24,
+    padding: 28,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
     elevation: 8,
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 5,
+    color: '#64748B',
+    marginBottom: 8,
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   balanceAmount: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 25,
+    fontSize: 42,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 28,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+    letterSpacing: -1,
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
   },
   actionButton: {
     flex: 1,
-    borderRadius: 15,
-    padding: 20,
+    borderRadius: 16,
+    padding: 18,
     alignItems: 'center',
-    marginHorizontal: 5,
   },
   sendButton: {
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#6366F1',
   },
   receiveButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#10B981',
+  },
+  simulateButton: {
+    backgroundColor: '#F59E0B',
   },
   actionIcon: {
-    fontSize: 28,
-    color: '#ffffff',
-    marginBottom: 8,
+    fontSize: 24,
+    color: '#FFFFFF',
+    marginBottom: 6,
   },
   actionButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   transactionsCard: {
-    backgroundColor: '#ffffff',
-    margin: 20,
+    backgroundColor: '#FFFFFF',
+    margin: 24,
     marginTop: 0,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 24,
+    padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
     elevation: 8,
   },
   transactionsTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 20,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
   },
   transactionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
   },
   transactionLeft: {
     flexDirection: 'row',
@@ -843,24 +1339,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   transactionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   sentIcon: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#FEE2E2',
   },
   receivedIcon: {
-    backgroundColor: '#d1fae5',
+    backgroundColor: '#D1FAE5',
   },
   transactionIconText: {
     fontSize: 20,
   },
   sentIconText: {
-    color: '#dc2626',
+    color: '#DC2626',
   },
   receivedIconText: {
     color: '#059669',
@@ -871,217 +1367,506 @@ const styles = StyleSheet.create({
   transactionName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#0F172A',
+    marginBottom: 4,
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   transactionDate: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
+    fontSize: 13,
+    color: '#64748B',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+    fontWeight: '500',
   },
   transactionAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
   },
   sentAmount: {
-    color: '#dc2626',
+    color: '#DC2626',
   },
   receivedAmount: {
     color: '#059669',
   },
   sendContainer: {
     flex: 1,
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#0A0E27',
   },
   backButton: {
-    padding: 20,
-    paddingBottom: 10,
+    padding: 24,
+    paddingBottom: 12,
   },
   backButtonText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   sendCard: {
-    backgroundColor: '#ffffff',
-    margin: 20,
+    backgroundColor: '#FFFFFF',
+    margin: 24,
     marginTop: 0,
-    borderRadius: 20,
-    padding: 25,
+    borderRadius: 24,
+    padding: 28,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
     elevation: 8,
   },
   sendTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 5,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
   },
   sendBalance: {
     fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 25,
+    color: '#64748B',
+    marginBottom: 28,
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+    fontWeight: '500',
   },
   bold: {
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: '#0F172A',
   },
   amountInputContainer: {
     position: 'relative',
   },
   currencySymbol: {
     position: 'absolute',
-    left: 12,
-    top: 12,
+    left: 16,
+    top: 16,
     fontSize: 20,
-    color: '#6b7280',
+    color: '#64748B',
     zIndex: 1,
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   amountInput: {
-    paddingLeft: 30,
+    paddingLeft: 36,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
   modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 30,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 32,
     width: '100%',
     maxWidth: 400,
   },
   modalIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#fef3c7',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FEF3C7',
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
   },
   modalIconText: {
-    fontSize: 32,
+    fontSize: 36,
   },
   modalTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontWeight: '700',
+    color: '#0F172A',
     textAlign: 'center',
-    marginBottom: 25,
+    marginBottom: 28,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
   },
   confirmationDetails: {
-    marginBottom: 25,
+    marginBottom: 28,
   },
   confirmationRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   confirmationLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#64748B',
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   confirmationValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#0F172A',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   confirmationAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#7c3aed',
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#6366F1',
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
   },
   cancelButton: {
-    backgroundColor: '#e5e7eb',
-    borderRadius: 10,
-    padding: 15,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 18,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
   },
   cancelButtonText: {
-    color: '#1f2937',
+    color: '#475569',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   receiveContainer: {
     flex: 1,
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#0A0E27',
   },
   receiveCard: {
-    backgroundColor: '#ffffff',
-    margin: 20,
+    backgroundColor: '#FFFFFF',
+    margin: 24,
     marginTop: 0,
-    borderRadius: 20,
-    padding: 25,
+    borderRadius: 24,
+    padding: 28,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
     elevation: 8,
   },
   receiveTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 5,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
   },
   receiveSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 25,
+    color: '#64748B',
+    marginBottom: 28,
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+    fontWeight: '500',
   },
   qrContainer: {
     alignItems: 'center',
   },
   qrCodeWrapper: {
-    backgroundColor: '#f3f4f6',
-    padding: 30,
-    borderRadius: 20,
-    marginBottom: 25,
+    backgroundColor: '#F8FAFC',
+    padding: 32,
+    borderRadius: 24,
+    marginBottom: 28,
   },
-  qrCode: {
+  qrCodePlaceholder: {
     width: 200,
     height: 200,
-    backgroundColor: '#7c3aed',
-    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: '#6366F1',
+    borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
   },
   qrCodeText: {
-    color: '#ffffff',
-    fontSize: 48,
-    fontWeight: 'bold',
+    fontSize: 64,
+    marginBottom: 10,
+  },
+  qrCodeSubtext: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   qrInfo: {
     width: '100%',
-    marginBottom: 25,
+    marginBottom: 28,
   },
   qrLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
+    color: '#64748B',
     textAlign: 'center',
-    marginBottom: 5,
+    marginBottom: 6,
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   qrValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0F172A',
     textAlign: 'center',
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+  },
+  qrValueSmall: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+    textAlign: 'center',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
   marginTop: {
-    marginTop: 15,
+    marginTop: 20,
   },
   qrAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#10b981',
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#10B981',
     textAlign: 'center',
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+  },
+  simulateContainer: {
+    flex: 1,
+    backgroundColor: '#0A0E27',
+  },
+  simulateCard: {
+    backgroundColor: '#FFFFFF',
+    margin: 24,
+    marginTop: 0,
+    borderRadius: 24,
+    padding: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  simulateTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+  },
+  simulateSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 28,
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+    fontWeight: '500',
+  },
+  profileContainer: {
+    flex: 1,
+    backgroundColor: '#0A0E27',
+  },
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+    margin: 24,
+    marginTop: 0,
+    borderRadius: 24,
+    padding: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: 32,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  profileAvatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: '#6366F1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  profileAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: '700',
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+  },
+  profileName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 6,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+  },
+  profileEmail: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+  },
+  profileBalance: {
+    backgroundColor: '#F8FAFC',
+    padding: 24,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  profileBalanceLabel: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 8,
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+  },
+  profileBalanceAmount: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#6366F1',
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+  },
+  profileSection: {
+    marginBottom: 24,
+  },
+  profileSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 18,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+  },
+  dataItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  dataItemLeft: {
+    flex: 1,
+  },
+  dataItemLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 6,
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+  },
+  dataItemValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0F172A',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+  },
+  copyButton: {
+    padding: 12,
+  },
+  copyButtonText: {
+    fontSize: 20,
+  },
+  copyMessageContainer: {
+    backgroundColor: '#10B981',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 24,
+  },
+  copyMessageText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+  },
+  transactionDetailContainer: {
+    flex: 1,
+    backgroundColor: '#0A0E27',
+  },
+  transactionDetailCard: {
+    backgroundColor: '#FFFFFF',
+    margin: 24,
+    marginTop: 0,
+    borderRadius: 24,
+    padding: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  detailStatusIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  detailStatusCompleted: {
+    backgroundColor: '#D1FAE5',
+  },
+  detailStatusPending: {
+    backgroundColor: '#FEF3C7',
+  },
+  detailStatusFailed: {
+    backgroundColor: '#FEE2E2',
+  },
+  detailStatusIconText: {
+    fontSize: 44,
+    fontWeight: 'bold',
+  },
+  detailStatus: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 24,
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+  },
+  detailAmount: {
+    fontSize: 48,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 32,
+    fontFamily: Platform.select({ ios: 'SF Pro Display', android: 'Roboto' }),
+  },
+  detailAmountSent: {
+    color: '#DC2626',
+  },
+  detailAmountReceived: {
+    color: '#059669',
+  },
+  detailInfo: {
+    backgroundColor: '#F8FAFC',
+    padding: 24,
+    borderRadius: 20,
+    marginBottom: 24,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: 12,
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
+  },
+  shareButton: {
+    backgroundColor: '#6366F1',
+    borderRadius: 12,
+    padding: 18,
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: Platform.select({ ios: 'SF Pro Text', android: 'Roboto' }),
   },
 });
 
